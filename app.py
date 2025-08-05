@@ -61,7 +61,7 @@ if model:
     st.write("스마트폰으로 이 페이지를 열고 '센서 권한 요청 및 시작' 버튼을 누른 후, 움직여 보세요!")
 
     # 앱 실행 시점에 이벤트 리스너를 한 번만 등록
-    st.components.v1.html("""
+    components.html("""
     <script>
     function requestAndStartSensors() {
         if (typeof DeviceMotionEvent.requestPermission === 'function') {
@@ -99,7 +99,7 @@ if model:
     """, height=0)
 
     if st.button("센서 권한 요청 및 시작"):
-        st.components.v1.html("""<script>requestAndStartSensors();</script>""", height=0)
+        components.html("""<script>requestAndStartSensors();</script>""", height=0)
         
     # 메시지를 수신하면 세션 상태에 저장 및 처리
     if st.session_state.get('messages'):
@@ -117,6 +117,8 @@ if model:
                 prediction = model.predict(df_for_prediction)
                 final_prediction = pd.Series(prediction).mode()[0]
                 st.session_state.last_prediction = labels.get(final_prediction, "알 수 없음")
+                # 예측이 업데이트되면 화면을 다시 그립니다.
+                st.rerun()
             except ValueError as e:
                 st.warning(f"예측 오류 발생: {e}")
         
