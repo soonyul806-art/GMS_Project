@@ -6,7 +6,7 @@ import streamlit.components.v1 as components
 import os
 
 # Google 드라이브 링크를 여기에 붙여넣기
-GOOGLE_DRIVE_LINK = "YOUR_GOOGLE_DRIVE_LINK_HERE" 
+GOOGLE_DRIVE_LINK = "https://drive.google.com/file/d/1pjbLZLcSc56chOuVEOlogZWFesUTYMOo/view?usp=drive_link" 
 MODEL_FILE_NAME = 'gms_activity_model.pkl'
 
 # 모델 다운로드 함수
