@@ -54,7 +54,6 @@ if model:
     st.success("모델이 성공적으로 로드되었습니다.")
     
     st.header(f"현재 활동: {st.session_state.last_prediction}")
-    
     st.write(f"현재 수집된 데이터 포인트: **{st.session_state.sensor_data.shape[0]} / 50**")
     st.write("스마트폰으로 이 페이지를 열고 '센서 권한 요청 및 시작' 버튼을 누른 후, 움직여 보세요!")
 
@@ -88,8 +87,8 @@ if model:
                 'gyro_y': event.rotationRate.beta, 
                 'gyro_z': event.rotationRate.gamma
             }
-        }, '*');
-    }, false);
+        }, false);
+    });
     </script>
     """
     components.html(js_code, height=0)
@@ -114,12 +113,9 @@ if model:
                 prediction = model.predict(df_for_prediction)
                 final_prediction = pd.Series(prediction).mode()[0]
                 st.session_state.last_prediction = labels.get(final_prediction, "알 수 없음")
+                st.experimental_rerun() # 예측이 업데이트되면 화면을 다시 그림
             except ValueError as e:
                 st.warning(f"예측 오류 발생: {e}")
         
 else:
     st.write("모델 로딩에 실패했습니다. 파일을 다시 확인해 주세요.")
-else:
-    st.write("모델 로딩에 실패했습니다. 파일을 다시 확인해 주세요.")
-
-
