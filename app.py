@@ -5,7 +5,7 @@ import requests
 import streamlit.components.v1 as components
 import os
 
-# Google 드라이브 링크를 여기에 붙여넣기
+# Google 드라이브 링크
 GOOGLE_DRIVE_LINK = "https://drive.google.com/file/d/1pjbLZLcSc56chOuVEOlogZWFesUTYMOo/view?usp=drive_link" 
 MODEL_FILE_NAME = 'gms_activity_model.pkl'
 
@@ -38,16 +38,41 @@ if not os.path.exists(MODEL_FILE_NAME):
 else:
     model = joblib.load(MODEL_FILE_NAME)
 
+# 예측 결과 레이블 매핑
+labels = {0: '앉아 있기', 1: '서기', 2: '걷기', 3: '자전거 타기', 4: '버스 타기', 5: '자동차 운전'}
+if 'last_prediction' not in st.session_state:
+    st.session_state.last_prediction = "아직 데이터가 없습니다."
+
 st.title('GMS: 친환경 습관 추적 앱 (데모)')
 st.write("---")
 
 if model:
-    st.success(f"'{MODEL_FILE_NAME}' 모델을 성공적으로 불러왔습니다.")
-    st.write("아래 '센서 데이터 가져오기' 버튼을 누르고 스마트폰을 움직여 보세요.")
+    st.success("모델이 성공적으로 로드되었습니다.")
+    st.header(f"현재 활동: {st.session_state.last_prediction}")
 
-    # ... (이전 코드의 센서 데이터 수집 자바스크립트 부분)
     js_code = """
     <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const requestPermission = () => {
+            if (typeof DeviceMotionEvent.requestPermission === 'function') {
+                DeviceMotionEvent.requestPermission()
+                    .then(permissionState => {
+                        if (permissionState === 'granted') {
+                            alert('센서 접근이 허용되었습니다.');
+                        } else {
+                            alert('센서 접근이 거부되었습니다.');
+                        }
+                    })
+                    .catch(console.error);
+            }
+        };
+
+        const button = document.getElementById('request-permission-button');
+        if (button) {
+            button.addEventListener('click', requestPermission);
+        }
+    });
+
     if (window.DeviceMotionEvent) {
         window.addEventListener('devicemotion', function(event) {
             const acc_x = event.acceleration.x;
@@ -67,26 +92,27 @@ if model:
         }, false);
     }
     </script>
+    <button id="request-permission-button">센서 권한 요청</button>
     """
     
-    components.html(js_code, height=0)
+    components.html(js_code, height=60)
 
     if 'sensor_data' not in st.session_state:
         st.session_state.sensor_data = pd.DataFrame(columns=['acc_x', 'acc_y', 'acc_z', 'gyro_x', 'gyro_y', 'gyro_z'])
 
-    st.subheader("수신된 센서 데이터")
-    data_placeholder = st.empty()
-
     if "messages" not in st.session_state:
         st.session_state.messages = []
 
-    for msg in st.session_state.messages:
-        new_data = pd.DataFrame([msg['data']])
-        st.session_state.sensor_data = pd.concat([st.session_state.sensor_data, new_data], ignore_index=True)
-        data_placeholder.dataframe(st.session_state.sensor_data.tail(50))
+    PREDICTION_WINDOW_SIZE = 50
+    if st.session_state.sensor_data.shape[0] >= PREDICTION_WINDOW_SIZE:
+        df_for_prediction = st.session_state.sensor_data.tail(PREDICTION_WINDOW_SIZE)
+        prediction = model.predict(df_for_prediction)
+        
+        final_prediction = pd.Series(prediction).mode()[0]
+        st.session_state.last_prediction = labels.get(final_prediction, "알 수 없음")
 
-    if st.button("센서 데이터 가져오기"):
-        st.write("스마트폰으로 이 페이지를 열고 움직여 보세요!")
+    if st.button("센서 데이터 가져오기 시작"):
+        st.write("스마트폰을 움직여 보세요!")
         st.session_state.messages = []
         st.session_state.sensor_data = pd.DataFrame(columns=['acc_x', 'acc_y', 'acc_z', 'gyro_x', 'gyro_y', 'gyro_z'])
 
