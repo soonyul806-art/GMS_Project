@@ -48,7 +48,6 @@ st.write("---")
 
 if model:
     st.success("모델이 성공적으로 로드되었습니다.")
-    
     st.header(f"현재 활동: {st.session_state.last_prediction}")
 
     # 자바스크립트 코드 (센서 권한 요청 및 데이터 수집)
@@ -88,6 +87,7 @@ if model:
     components.html(js_code, height=0)
 
     if st.button("센서 권한 요청 및 시작"):
+        # 버튼을 누르면 자바스크립트 함수를 실행
         st.components.v1.html("""<script>requestSensorPermission();</script>""", height=0)
         st.write("스마트폰을 움직여 보세요!")
         
@@ -104,6 +104,7 @@ if model:
         
         final_prediction = pd.Series(prediction).mode()[0]
         st.session_state.last_prediction = labels.get(final_prediction, "알 수 없음")
+        # 예측이 업데이트되면 화면을 다시 그림
         st.rerun()
 
 else:
