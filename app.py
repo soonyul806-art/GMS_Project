@@ -46,8 +46,6 @@ if 'last_prediction' not in st.session_state:
     st.session_state.last_prediction = "데이터를 수집하는 중..."
 if 'sensor_data' not in st.session_state:
     st.session_state.sensor_data = pd.DataFrame(columns=['acc_x', 'acc_y', 'acc_z', 'gyro_x', 'gyro_y', 'gyro_z'])
-if 'sensor_active' not in st.session_state:
-    st.session_state.sensor_active = False
 
 st.title('GMS: 친환경 습관 추적 앱 (데모)')
 st.write("---")
@@ -59,11 +57,11 @@ if model:
     
     data_points_info = st.empty()
     data_points_info.write(f"현재 수집된 데이터 포인트: **{st.session_state.sensor_data.shape[0]} / 50**")
-    st.write("스마트폰으로 이 페이지를 열고 '센서 권한 요청 및 시작' 버튼을 누른 후, 움직여 보세요!")
+    st.write("스마트폰으로 아래 '센서 권한 요청 및 시작' 버튼을 누른 후, 움직여 보세요!")
 
-    # 센서 권한 요청 및 리스너 등록 스크립트
-    # 버튼 클릭 상태에 따라 리스너를 활성화
-    js_code = """
+    # 모든 자바스크립트 로직을 하나의 HTML 컴포넌트에 통합
+    components.html("""
+    <button onclick="requestAndStartSensors()">센서 권한 요청 및 시작</button>
     <script>
     function requestAndStartSensors() {
         if (typeof DeviceMotionEvent.requestPermission === 'function') {
@@ -71,6 +69,7 @@ if model:
                 .then(permissionState => {
                     if (permissionState === 'granted') {
                         alert('센서 접근이 허용되었습니다. 이제 움직여보세요!');
+                        startSensorListener();
                     } else {
                         alert('센서 접근이 거부되었습니다.');
                     }
@@ -81,36 +80,33 @@ if model:
                 });
         } else {
             alert('이 기기는 센서 권한 요청이 필요하지 않습니다. 이제 움직여보세요!');
+            startSensorListener();
         }
     }
 
-    if (window.hasSensorListener === undefined) {
-        window.hasSensorListener = true;
-        window.addEventListener('devicemotion', function(event) {
-            window.parent.postMessage({
-                'type': 'FROM_STREAMLIT',
-                'data': {
-                    'acc_x': event.acceleration.x, 
-                    'acc_y': event.acceleration.y, 
-                    'acc_z': event.acceleration.z,
-                    'gyro_x': event.rotationRate.alpha, 
-                    'gyro_y': event.rotationRate.beta, 
-                    'gyro_z': event.rotationRate.gamma
-                }
-            }, '*');
-        }, false);
-        console.log('devicemotion listener registered');
+    function startSensorListener() {
+        if (window.hasSensorListener === undefined) {
+            window.hasSensorListener = true;
+            window.addEventListener('devicemotion', function(event) {
+                window.parent.postMessage({
+                    'type': 'FROM_STREAMLIT',
+                    'data': {
+                        'acc_x': event.acceleration.x, 
+                        'acc_y': event.acceleration.y, 
+                        'acc_z': event.acceleration.z,
+                        'gyro_x': event.rotationRate.alpha, 
+                        'gyro_y': event.rotationRate.beta, 
+                        'gyro_z': event.rotationRate.gamma
+                    }
+                }, '*');
+            }, false);
+            console.log('devicemotion listener registered');
+        }
     }
     
     </script>
-    """
-    
-    components.html(js_code, height=0)
+    """, height=100)
 
-    if st.button("센서 권한 요청 및 시작"):
-        # 버튼을 누르면 권한 요청만 실행
-        components.html("""<script>requestAndStartSensors();</script>""", height=0)
-        
     # 메시지를 수신하면 세션 상태에 저장 및 처리
     if st.session_state.get('messages'):
         for msg in st.session_state.messages:
