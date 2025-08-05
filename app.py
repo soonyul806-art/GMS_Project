@@ -48,56 +48,68 @@ st.write("---")
 
 if model:
     st.success("모델이 성공적으로 로드되었습니다.")
+    
+    # 센서 권한 요청 버튼
+    if st.button("센서 권한 요청"):
+        st.write("스마트폰으로 이 페이지를 열고 센서 권한을 허용해 주세요.")
+        
     st.header(f"현재 활동: {st.session_state.last_prediction}")
 
     # 자바스크립트 코드 (센서 권한 요청 및 데이터 수집)
     js_code = """
     <script>
-    window.onload = function() {
-        const urlParams = new URLSearchParams(window.location.search);
-        const getSensors = urlParams.get('getSensors');
-        if (getSensors === 'true') {
-            if (typeof DeviceMotionEvent.requestPermission === 'function') {
-                DeviceMotionEvent.requestPermission()
-                    .then(permissionState => {
-                        if (permissionState === 'granted') {
-                            window.parent.postMessage({ type: 'FROM_STREAMLIT', data: 'permission_granted' }, '*');
-                        } else {
-                            window.parent.postMessage({ type: 'FROM_STREAMLIT', data: 'permission_denied' }, '*');
-                        }
-                    })
-                    .catch(console.error);
-            } else {
-                 window.parent.postMessage({ type: 'FROM_STREAMLIT', data: 'permission_not_required' }, '*');
+    if (window.DeviceMotionEvent) {
+        document.addEventListener('DOMContentLoaded', function() {
+            const permissionButton = document.getElementById('permission_button');
+            if (permissionButton) {
+                permissionButton.addEventListener('click', function() {
+                    if (typeof DeviceMotionEvent.requestPermission === 'function') {
+                        DeviceMotionEvent.requestPermission()
+                            .then(permissionState => {
+                                if (permissionState === 'granted') {
+                                    alert('센서 접근이 허용되었습니다.');
+                                } else {
+                                    alert('센서 접근이 거부되었습니다.');
+                                }
+                            })
+                            .catch(console.error);
+                    } else {
+                        alert('이 기기는 센서 권한 요청이 필요하지 않습니다.');
+                    }
+                });
             }
-        }
-    };
-    
-    window.addEventListener('devicemotion', function(event) {
-        window.parent.postMessage({
-            'type': 'FROM_STREAMLIT',
-            'data': {
-                'acc_x': event.acceleration.x, 
-                'acc_y': event.acceleration.y, 
-                'acc_z': event.acceleration.z,
-                'gyro_x': event.rotationRate.alpha, 
-                'gyro_y': event.rotationRate.beta, 
-                'gyro_z': event.rotationRate.gamma
-            }
-        }, '*');
-    }, false);
-    </script>
-    """
-    components.html(js_code, height=0)
+        });
 
-    if st.button("센서 데이터 가져오기 시작"):
-        # 버튼을 누르면 URL에 파라미터를 추가하여 페이지를 새로고침
-        st.experimental_rerun()
-    
-    st.session_state.messages = []
-    
+        window.addEventListener('devicemotion', function(event) {
+            const acc_x = event.acceleration.x;
+            const acc_y = event.acceleration.y;
+            const acc_z = event.acceleration.z;
+            const gyro_x = event.rotationRate.alpha;
+            const gyro_y = event.rotationRate.beta;
+            const gyro_z = event.rotationRate.gamma;
+
+            window.parent.postMessage({
+                'type': 'FROM_STREAMLIT',
+                'data': {
+                    'acc_x': acc_x, 'acc_y': acc_y, 'acc_z': acc_z,
+                    'gyro_x': gyro_x, 'gyro_y': gyro_y, 'gyro_z': gyro_z
+                }
+            }, '*');
+        }, false);
+    }
+    </script>
+    <button id="permission_button">센서 권한 요청</button>
+    """
+    components.html(js_code, height=60)
+
+    if 'sensor_data' not in st.session_state:
+        st.session_state.sensor_data = pd.DataFrame(columns=['acc_x', 'acc_y', 'acc_z', 'gyro_x', 'gyro_y', 'gyro_z'])
+
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
+
     PREDICTION_WINDOW_SIZE = 50
-    if st.session_state.get('sensor_data') and st.session_state.sensor_data.shape[0] >= PREDICTION_WINDOW_SIZE:
+    if st.session_state.sensor_data.shape[0] >= PREDICTION_WINDOW_SIZE:
         df_for_prediction = st.session_state.sensor_data.tail(PREDICTION_WINDOW_SIZE)
         prediction = model.predict(df_for_prediction)
         
