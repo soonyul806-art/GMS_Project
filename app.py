@@ -59,48 +59,49 @@ if model:
     data_points_info.write(f"현재 수집된 데이터 포인트: **{st.session_state.sensor_data.shape[0]} / 50**")
     st.write("스마트폰으로 이 페이지를 열고 '센서 권한 요청 및 시작' 버튼을 누른 후, 움직여 보세요!")
 
-    # 자바스크립트 코드 (센서 권한 요청 및 데이터 수집)
-    js_code = """
-    <script>
-    function requestAndStartSensors() {
-        if (typeof DeviceMotionEvent.requestPermission === 'function') {
-            DeviceMotionEvent.requestPermission()
-                .then(permissionState => {
-                    if (permissionState === 'granted') {
-                        alert('센서 접근이 허용되었습니다. 이제 움직여보세요!');
-                        startSensorListener();
-                    } else {
-                        alert('센서 접근이 거부되었습니다.');
-                    }
-                })
-                .catch(console.error);
-        } else {
-            alert('이 기기는 센서 권한 요청이 필요하지 않습니다. 이제 움직여보세요!');
-            startSensorListener();
-        }
-    }
-    
-    function startSensorListener() {
-        window.addEventListener('devicemotion', function(event) {
-            window.parent.postMessage({
-                'type': 'FROM_STREAMLIT',
-                'data': {
-                    'acc_x': event.acceleration.x, 
-                    'acc_y': event.acceleration.y, 
-                    'acc_z': event.acceleration.z,
-                    'gyro_x': event.rotationRate.alpha, 
-                    'gyro_y': event.rotationRate.beta, 
-                    'gyro_z': event.rotationRate.gamma
-                }
-            }, '*');
-        }, false);
-    }
-    </script>
-    """
-    components.html(js_code, height=0)
-
     if st.button("센서 권한 요청 및 시작"):
-        st.components.v1.html("""<script>requestAndStartSensors();</script>""", height=0)
+        # 버튼 클릭 시 권한 요청 및 이벤트 리스너를 한 번에 등록
+        st.components.v1.html("""
+        <script>
+        function requestAndStartSensors() {
+            if (typeof DeviceMotionEvent.requestPermission === 'function') {
+                DeviceMotionEvent.requestPermission()
+                    .then(permissionState => {
+                        if (permissionState === 'granted') {
+                            alert('센서 접근이 허용되었습니다. 이제 움직여보세요!');
+                            startSensorListener();
+                        } else {
+                            alert('센서 접근이 거부되었습니다.');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('권한 요청 중 오류 발생:', error);
+                        alert('권한 요청 중 오류가 발생했습니다.');
+                    });
+            } else {
+                alert('이 기기는 센서 권한 요청이 필요하지 않습니다. 이제 움직여보세요!');
+                startSensorListener();
+            }
+        }
+        
+        function startSensorListener() {
+            window.addEventListener('devicemotion', function(event) {
+                window.parent.postMessage({
+                    'type': 'FROM_STREAMLIT',
+                    'data': {
+                        'acc_x': event.acceleration.x, 
+                        'acc_y': event.acceleration.y, 
+                        'acc_z': event.acceleration.z,
+                        'gyro_x': event.rotationRate.alpha, 
+                        'gyro_y': event.rotationRate.beta, 
+                        'gyro_z': event.rotationRate.gamma
+                    }
+                }, '*');
+            }, false);
+        }
+        requestAndStartSensors();
+        </script>
+        """, height=0)
         
     # 메시지를 수신하면 세션 상태에 저장
     if st.session_state.get('messages'):
