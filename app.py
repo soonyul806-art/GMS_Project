@@ -49,59 +49,48 @@ st.write("---")
 if model:
     st.success("모델이 성공적으로 로드되었습니다.")
     
-    # 센서 권한 요청 버튼
-    if st.button("센서 권한 요청"):
-        st.write("스마트폰으로 이 페이지를 열고 센서 권한을 허용해 주세요.")
-        
     st.header(f"현재 활동: {st.session_state.last_prediction}")
 
     # 자바스크립트 코드 (센서 권한 요청 및 데이터 수집)
     js_code = """
     <script>
-    if (window.DeviceMotionEvent) {
-        document.addEventListener('DOMContentLoaded', function() {
-            const permissionButton = document.getElementById('permission_button');
-            if (permissionButton) {
-                permissionButton.addEventListener('click', function() {
-                    if (typeof DeviceMotionEvent.requestPermission === 'function') {
-                        DeviceMotionEvent.requestPermission()
-                            .then(permissionState => {
-                                if (permissionState === 'granted') {
-                                    alert('센서 접근이 허용되었습니다.');
-                                } else {
-                                    alert('센서 접근이 거부되었습니다.');
-                                }
-                            })
-                            .catch(console.error);
+    function requestSensorPermission() {
+        if (typeof DeviceMotionEvent.requestPermission === 'function') {
+            DeviceMotionEvent.requestPermission()
+                .then(permissionState => {
+                    if (permissionState === 'granted') {
+                        alert('센서 접근이 허용되었습니다. 이제 움직여보세요!');
                     } else {
-                        alert('이 기기는 센서 권한 요청이 필요하지 않습니다.');
+                        alert('센서 접근이 거부되었습니다.');
                     }
-                });
-            }
-        });
-
-        window.addEventListener('devicemotion', function(event) {
-            const acc_x = event.acceleration.x;
-            const acc_y = event.acceleration.y;
-            const acc_z = event.acceleration.z;
-            const gyro_x = event.rotationRate.alpha;
-            const gyro_y = event.rotationRate.beta;
-            const gyro_z = event.rotationRate.gamma;
-
-            window.parent.postMessage({
-                'type': 'FROM_STREAMLIT',
-                'data': {
-                    'acc_x': acc_x, 'acc_y': acc_y, 'acc_z': acc_z,
-                    'gyro_x': gyro_x, 'gyro_y': gyro_y, 'gyro_z': gyro_z
-                }
-            }, '*');
-        }, false);
+                })
+                .catch(console.error);
+        } else {
+            alert('이 기기는 센서 권한 요청이 필요하지 않습니다. 이제 움직여보세요!');
+        }
     }
+    
+    window.addEventListener('devicemotion', function(event) {
+        window.parent.postMessage({
+            'type': 'FROM_STREAMLIT',
+            'data': {
+                'acc_x': event.acceleration.x, 
+                'acc_y': event.acceleration.y, 
+                'acc_z': event.acceleration.z,
+                'gyro_x': event.rotationRate.alpha, 
+                'gyro_y': event.rotationRate.beta, 
+                'gyro_z': event.rotationRate.gamma
+            }
+        }, '*');
+    }, false);
     </script>
-    <button id="permission_button">센서 권한 요청</button>
     """
-    components.html(js_code, height=60)
+    components.html(js_code, height=0)
 
+    if st.button("센서 권한 요청 및 시작"):
+        st.components.v1.html("""<script>requestSensorPermission();</script>""", height=0)
+        st.write("스마트폰을 움직여 보세요!")
+        
     if 'sensor_data' not in st.session_state:
         st.session_state.sensor_data = pd.DataFrame(columns=['acc_x', 'acc_y', 'acc_z', 'gyro_x', 'gyro_y', 'gyro_z'])
 
@@ -115,7 +104,7 @@ if model:
         
         final_prediction = pd.Series(prediction).mode()[0]
         st.session_state.last_prediction = labels.get(final_prediction, "알 수 없음")
-        
-    st.write("스마트폰으로 이 페이지를 열고 움직여 보세요!")
+        st.rerun()
+
 else:
     st.write("모델 로딩에 실패했습니다. 파일을 다시 확인해 주세요.")
