@@ -62,6 +62,7 @@ if model:
     st.write("스마트폰으로 이 페이지를 열고 '센서 권한 요청 및 시작' 버튼을 누른 후, 움직여 보세요!")
 
     # 센서 권한 요청 및 리스너 등록 스크립트
+    # 버튼 클릭 상태에 따라 리스너를 활성화
     js_code = """
     <script>
     function requestAndStartSensors() {
@@ -70,7 +71,6 @@ if model:
                 .then(permissionState => {
                     if (permissionState === 'granted') {
                         alert('센서 접근이 허용되었습니다. 이제 움직여보세요!');
-                        startSensorListener();
                     } else {
                         alert('센서 접근이 거부되었습니다.');
                     }
@@ -81,11 +81,11 @@ if model:
                 });
         } else {
             alert('이 기기는 센서 권한 요청이 필요하지 않습니다. 이제 움직여보세요!');
-            startSensorListener();
         }
     }
 
-    function startSensorListener() {
+    if (window.hasSensorListener === undefined) {
+        window.hasSensorListener = true;
         window.addEventListener('devicemotion', function(event) {
             window.parent.postMessage({
                 'type': 'FROM_STREAMLIT',
@@ -99,20 +99,18 @@ if model:
                 }
             }, '*');
         }, false);
+        console.log('devicemotion listener registered');
     }
     
-    if ("%s" === "true") {
-        requestAndStartSensors();
-    }
     </script>
-    """ % ("true" if st.session_state.sensor_active else "false")
+    """
     
     components.html(js_code, height=0)
 
     if st.button("센서 권한 요청 및 시작"):
-        st.session_state.sensor_active = True
-        st.rerun() # 버튼 클릭 후 새로고침하여 자바스크립트 실행
-
+        # 버튼을 누르면 권한 요청만 실행
+        components.html("""<script>requestAndStartSensors();</script>""", height=0)
+        
     # 메시지를 수신하면 세션 상태에 저장 및 처리
     if st.session_state.get('messages'):
         for msg in st.session_state.messages:
@@ -120,17 +118,18 @@ if model:
             st.session_state.sensor_data = pd.concat([st.session_state.sensor_data, new_data], ignore_index=True)
         
         st.session_state.messages = []
+        st.rerun()
 
-        PREDICTION_WINDOW_SIZE = 50
-        if st.session_state.sensor_data.shape[0] >= PREDICTION_WINDOW_SIZE:
-            df_for_prediction = st.session_state.sensor_data.tail(PREDICTION_WINDOW_SIZE)
-            
-            try:
-                prediction = model.predict(df_for_prediction)
-                final_prediction = pd.Series(prediction).mode()[0]
-                st.session_state.last_prediction = labels.get(final_prediction, "알 수 없음")
-            except ValueError as e:
-                st.warning(f"예측 오류 발생: {e}")
+    PREDICTION_WINDOW_SIZE = 50
+    if st.session_state.sensor_data.shape[0] >= PREDICTION_WINDOW_SIZE:
+        df_for_prediction = st.session_state.sensor_data.tail(PREDICTION_WINDOW_SIZE)
+        
+        try:
+            prediction = model.predict(df_for_prediction)
+            final_prediction = pd.Series(prediction).mode()[0]
+            st.session_state.last_prediction = labels.get(final_prediction, "알 수 없음")
+        except ValueError as e:
+            st.warning(f"예측 오류 발생: {e}")
         
 else:
     st.write("모델 로딩에 실패했습니다. 파일을 다시 확인해 주세요.")
