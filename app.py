@@ -4,7 +4,7 @@ import pandas as pd
 import requests
 import streamlit.components.v1 as components
 import os
-import time
+import numpy as np
 
 # Google 드라이브 링크
 GOOGLE_DRIVE_LINK = "https://drive.google.com/file/d/1pjbLZLcSc56chOuVEOlogZWFesUTYMOo/view?usp=drive_link"
@@ -41,8 +41,9 @@ else:
     model = joblib.load(MODEL_FILE_NAME)
 
 labels = {0: '앉아 있기', 1: '서기', 2: '걷기', 3: '자전거 타기', 4: '버스 타기', 5: '자동차 운전'}
+
 if 'last_prediction' not in st.session_state:
-    st.session_state.last_prediction = "아직 데이터가 없습니다."
+    st.session_state.last_prediction = "데이터를 수집하는 중..."
 if 'sensor_data' not in st.session_state:
     st.session_state.sensor_data = pd.DataFrame(columns=['acc_x', 'acc_y', 'acc_z', 'gyro_x', 'gyro_y', 'gyro_z'])
 
@@ -51,8 +52,9 @@ st.write("---")
 
 if model:
     st.success("모델이 성공적으로 로드되었습니다.")
-    prediction_placeholder = st.empty()
-    
+    st.header(f"현재 활동: {st.session_state.last_prediction}")
+    st.write("스마트폰으로 이 페이지를 열고 '센서 권한 요청 및 시작' 버튼을 누른 후, 움직여 보세요!")
+
     # 자바스크립트 코드 (센서 권한 요청 및 데이터 수집)
     js_code = """
     <script>
@@ -91,36 +93,28 @@ if model:
 
     if st.button("센서 권한 요청 및 시작"):
         st.components.v1.html("""<script>requestSensorPermission();</script>""", height=0)
-        st.write("스마트폰을 움직여 보세요!")
+        
+    # 메시지를 수신하면 세션 상태에 저장
+    if st.session_state.get('messages'):
+        for msg in st.session_state.messages:
+            new_data = pd.DataFrame([msg['data']])
+            st.session_state.sensor_data = pd.concat([st.session_state.sensor_data, new_data], ignore_index=True)
+        
+        st.session_state.messages = [] # 메시지 처리 후 초기화
 
-    if "messages" not in st.session_state:
-        st.session_state.messages = []
-
-    # 실시간 데이터 처리 및 예측
-    while True:
-        if st.session_state.get('messages'):
-            for msg in st.session_state.messages:
-                new_data = pd.DataFrame([msg['data']])
-                st.session_state.sensor_data = pd.concat([st.session_state.sensor_data, new_data], ignore_index=True)
+        PREDICTION_WINDOW_SIZE = 50
+        if st.session_state.sensor_data.shape[0] >= PREDICTION_WINDOW_SIZE:
+            df_for_prediction = st.session_state.sensor_data.tail(PREDICTION_WINDOW_SIZE)
             
-            st.session_state.messages = [] # 메시지 처리 후 초기화
-
-            PREDICTION_WINDOW_SIZE = 50
-            if st.session_state.sensor_data.shape[0] >= PREDICTION_WINDOW_SIZE:
-                df_for_prediction = st.session_state.sensor_data.tail(PREDICTION_WINDOW_SIZE)
-                
-                # 예측
-                try:
-                    prediction = model.predict(df_for_prediction)
-                    final_prediction = pd.Series(prediction).mode()[0]
-                    st.session_state.last_prediction = labels.get(final_prediction, "알 수 없음")
-                except ValueError as e:
-                    st.warning(f"예측 오류 발생: {e}")
-
-        # 예측 결과 업데이트
-        prediction_placeholder.header(f"현재 활동: {st.session_state.last_prediction}")
-        time.sleep(0.5) # 0.5초 간격으로 업데이트
-        st.rerun()
+            # 예측
+            try:
+                prediction = model.predict(df_for_prediction)
+                final_prediction = pd.Series(prediction).mode()[0]
+                st.session_state.last_prediction = labels.get(final_prediction, "알 수 없음")
+                st.rerun() # 예측이 업데이트되면 화면을 다시 그림
+            except ValueError as e:
+                st.warning(f"예측 오류 발생: {e}")
 
 else:
     st.write("모델 로딩에 실패했습니다. 파일을 다시 확인해 주세요.")
+
