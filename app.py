@@ -1,69 +1,90 @@
 import streamlit as st
 import streamlit.components.v1 as components
-import json
 
-st.set_page_config(page_title="센서 수집기", layout="centered")
+st.set_page_config(page_title="센서 수집 앱", layout="centered")
 
-st.title("📱 스마트폰 센서 수집기")
+st.title("📱 모바일 센서 데이터 수집")
+st.write("아래 버튼을 눌러 센서 데이터를 수집하고 Streamlit으로 전달합니다.")
 
-# iframe으로 자바스크립트 컴포넌트 삽입
-components.html("""
-    <iframe id="sensor-frame" src="/sensor_component.html" width="0" height="0" style="display: none;"></iframe>
-    <script>
-      const iframe = document.getElementById("sensor-frame");
-      const channel = new BroadcastChannel("sensor_channel");
+# 수집 시작 버튼
+start_collection = st.button("센서 수집 시작")
 
-      window.addEventListener("message", (event) => {
-        if (event.data && event.data.type === "sensor_data") {
-          const data = event.data.payload;
-          channel.postMessage(JSON.stringify(data));
-        }
-      });
-
-      function sendMessageToIframe(msg) {
-        iframe.contentWindow.postMessage(msg, "*");
-      }
-
-      window.sendPermissionRequest = () => sendMessageToIframe("request_permission");
-      window.startCollection = () => sendMessageToIframe("start_collection");
-    </script>
-""", height=0)
-
-# 권한 요청 버튼
-if st.button("📲 센서 권한 요청"):
-    st.info("브라우저에 센서 사용 권한을 요청했습니다.")
-    components.html("<script>window.sendPermissionRequest()</script>", height=0)
-
-# 센서 수집 버튼
-if st.button("▶️ 센서 수집 시작"):
-    st.success("센서 데이터 수집을 시작했습니다. 약 5초간 측정 후 자동 종료됩니다.")
-    components.html("<script>window.startCollection()</script>", height=0)
-
-# 수집된 센서 데이터를 수신
-sensor_data = st.session_state.get("sensor_data", None)
-
-# 데이터 수신을 위한 채널
+# 센서 데이터 표시용 공간
 sensor_data_placeholder = st.empty()
 
-from streamlit_javascript import st_javascript
+# HTML + JS 삽입
+components.html(f"""
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <script>
+      let watching = false;
 
-received_json = st_javascript(
-    code="""
-    new Promise((resolve) => {
-      const channel = new BroadcastChannel("sensor_channel");
-      channel.onmessage = (event) => {
-        resolve(event.data);
-      };
-    });
-    """
-)
+      function startSensorCollection() {{
+        if (!window.DeviceMotionEvent) {{
+          window.parent.postMessage({{ type: 'sensorData', data: 'DeviceMotionEvent not supported' }}, '*');
+          return;
+        }}
 
-# 수신 후 파싱
-if received_json:
-    try:
-        parsed = json.loads(received_json)
-        st.session_state["sensor_data"] = parsed
-        st.success("✅ 센서 데이터 수신 완료!")
-        st.json(parsed)
-    except Exception as e:
-        st.error(f"데이터 파싱 오류: {e}")
+        window.addEventListener('devicemotion', function(event) {{
+          if (!watching) return;
+
+          const acc = event.accelerationIncludingGravity;
+          const data = {{
+            x: acc.x?.toFixed(2),
+            y: acc.y?.toFixed(2),
+            z: acc.z?.toFixed(2),
+            timestamp: Date.now()
+          }};
+
+          window.parent.postMessage({{ type: 'sensorData', data }}, '*');
+        }}, true);
+
+        watching = true;
+      }}
+
+      window.addEventListener("message", function(event) {{
+        if (event.data === "start") {{
+          startSensorCollection();
+        }}
+      }});
+    </script>
+  </head>
+  <body>
+    <p>이 창은 센서 수집을 위한 임베디드 콘텐츠입니다.</p>
+  </body>
+</html>
+""", height=200)
+
+# JS로 메시지를 보냄 (센서 시작 신호)
+if start_collection:
+    st.write("📡 센서 수집을 시작합니다. 휴대폰을 움직여보세요.")
+    # JS로 메시지 전송
+    st.components.v1.html(f"""
+        <script>
+            window.parent.postMessage("start", "*");
+        </script>
+    """, height=0)
+
+# 센서 데이터 수신 JavaScript
+# (Streamlit 내부적으로 브라우저와 JS가 메시지를 주고받도록 함)
+st.markdown("""
+<script>
+    const streamlitReceiver = (event) => {
+        if (event.data?.type === 'sensorData') {
+            const data = event.data.data;
+            const json = typeof data === 'string' ? data : JSON.stringify(data);
+            const textarea = window.parent.document.querySelector('textarea[data-testid="stTextArea"]');
+            if (textarea) {
+                textarea.value = json;
+                textarea.dispatchEvent(new Event("input", {{ bubbles: true }}));
+            }
+        }
+    };
+    window.addEventListener("message", streamlitReceiver);
+</script>
+""", unsafe_allow_html=True)
+
+# 실제 센서 데이터를 표시할 위치
+sensor_data = st.text_area("📊 센서 데이터", height=100)
