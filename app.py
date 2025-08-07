@@ -12,11 +12,12 @@ import numpy as np
 # 파일 ID만 사용하며, 다운로드 로직이 복잡한 과정을 처리합니다.
 GOOGLE_DRIVE_FILE_ID = "1pjbLZLcSc56chOuVEOlogZWFesUTYMOo"
 MODEL_FILE_NAME = "gms_activity_model.pkl"
-LABELS = {0: '앉아 있기', 1: '서기', 2: 걷기', 3: '자전거 타기', 4: '버스 타기', 5: '자동차 운전'}
+LABELS = {0: '앉아 있기', 1: '서기', 2: '걷기', 3: '자전거 타기', 4: '버스 타기', 5: '자동차 운전'}
 PREDICTION_WINDOW_SIZE = 50
 
 # --- 2. 모델 다운로드 및 로드 (더욱 안정적인 방식) ---
 def download_file_from_google_drive(file_id, destination):
+    """큰 파일 다운로드 시 '바이러스 검사' 경고 페이지를 우회하는 함수"""
     URL = "https://docs.google.com/uc?export=download"
     session = requests.Session()
     
@@ -30,12 +31,14 @@ def download_file_from_google_drive(file_id, destination):
     save_response_content(response, destination)
     
 def get_confirm_token(response):
+    """다운로드 경고 페이지에서 토큰을 추출하는 함수"""
     for key, value in response.cookies.items():
         if key.startswith('download_warning'):
             return value
     return None
 
 def save_response_content(response, destination):
+    """다운로드된 파일을 저장하는 함수"""
     CHUNK_SIZE = 32768
     with open(destination, "wb") as f:
         for chunk in response.iter_content(CHUNK_SIZE):
